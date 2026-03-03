@@ -144,7 +144,13 @@ hooks:
       shell: pwsh
       continueOnError: false
 
-    # Stage 19: Clean up AI Landing Zone template specs
+    # Stage 19: Create Fabric mirror to PostgreSQL
+    - run: ./scripts/automationScripts/FabricWorkspace/mirror/create_fabric_mirror_postgresql.ps1
+      interactive: false
+      shell: pwsh
+      continueOnError: false
+
+    # Stage 20: Clean up AI Landing Zone template specs
     - run: ./submodules/ai-landing-zone/bicep/scripts/postprovision.ps1
       interactive: false
       shell: pwsh

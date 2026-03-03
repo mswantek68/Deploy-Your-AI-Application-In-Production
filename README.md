@@ -157,6 +157,22 @@ Follow the deployment guide to deploy this solution to your own Azure subscripti
 <!------------------------------------------>
 <!-- BUSINESS SCENARIO                       -->
 <!------------------------------------------>
+## PostgreSQL Settings
+
+PostgreSQL provisioning is configured via parameters in [infra/main.bicepparam](infra/main.bicepparam). Key settings:
+
+- Enable/disable: `deployPostgres`
+- Mode: `postgresMode` (`create`, `byo`, `none`)
+- Server naming: `postgresServerName` (defaults to `pg-${foundryEnvName}`)
+- SKU/tier/version/zone: `postgresSkuName`, `postgresTier`, `postgresVersion`, `postgresAvailabilityZone`
+- High availability: `postgresHighAvailability` (`Disabled`, `SameZone`, `ZoneRedundant`) and `postgresHighAvailabilityZone`
+- Network isolation: `postgresEnableNetworkIsolation`, `postgresPrivateEndpointSubnetResourceId`, `postgresPrivateDnsZoneResourceId`
+- Admin credentials: `postgresAdminLogin` and `postgresAdminPassword` (read from environment variables)
+
+Fabric mirror uses the Key Vault secret names `fabricMirrorPostgresUsernameSecretName` and `fabricMirrorPostgresPasswordSecretName` in [infra/main.bicepparam](infra/main.bicepparam).
+
+<br/>
+
 <h2><img src="./docs/images/readme/business-scenario.png" width="48" />
 Business Scenario
 </h2>

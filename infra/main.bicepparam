@@ -121,6 +121,56 @@ param fabricCapacitySku = 'F8'
 param fabricCapacityAdmins = []
 
 // ========================================
+// POSTGRESQL PARAMETERS (Post-ALZ Extension)
+// ========================================
+
+// Enable PostgreSQL provisioning after ALZ
+param deployPostgres = false
+
+// Modes: 'create' | 'byo' | 'none'
+param postgresMode = deployPostgres ? 'create' : 'none'
+
+// Required when postgresMode = 'byo'
+param postgresResourceId = ''
+
+// Optional: server name override (auto-generated if empty)
+param postgresServerName = 'pg-${foundryEnvName}'
+
+// Required when postgresMode = 'create'
+param postgresSkuName = 'Standard_D2s_v3'
+param postgresTier = 'GeneralPurpose'
+param postgresAvailabilityZone = -1
+param postgresVersion = '16'
+param postgresHighAvailability = 'Disabled'
+param postgresHighAvailabilityZone = -1
+
+// Admin credentials (set via environment variables)
+param postgresAdminLogin = readEnvironmentVariable('POSTGRES_ADMIN_LOGIN', '')
+param postgresAdminPassword = readEnvironmentVariable('POSTGRES_ADMIN_PASSWORD', '')
+
+// Optional database to create (used by post-provision mirror)
+param postgresDatabaseName = ''
+
+// Network isolation settings
+param postgresEnableNetworkIsolation = true
+param postgresPrivateEndpointSubnetResourceId = '' // defaults to ALZ pe-subnet
+param postgresPrivateDnsZoneResourceId = '' // defaults to new privatelink zone
+
+// ========================================
+// FABRIC MIRROR PARAMETERS (Post-Provision)
+// ========================================
+
+// Enable mirror only when Fabric workspace automation is enabled
+param fabricMirrorEnabled = fabricWorkspaceMode != 'none'
+
+// Optional: mirror name override
+param fabricMirrorName = ''
+
+// Key Vault secret names for PostgreSQL credentials (preferred)
+param fabricMirrorPostgresUsernameSecretName = 'postgres-admin-username'
+param fabricMirrorPostgresPasswordSecretName = 'postgres-admin-password'
+
+// ========================================
 // PURVIEW PARAMETERS (Optional)
 // ========================================
 

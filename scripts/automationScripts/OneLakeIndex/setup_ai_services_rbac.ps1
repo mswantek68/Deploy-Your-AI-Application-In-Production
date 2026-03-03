@@ -215,6 +215,30 @@ try {
                 Warn "Failed to assign Contributor on AI Foundry account: $assignmentAccount"
             }
 
+            if ($additionalPrincipalIds.Count -gt 0) {
+                Log "Assigning Cognitive Services OpenAI Contributor to additional principals on AI Foundry account"
+                foreach ($principalId in $additionalPrincipalIds) {
+                    if (-not $principalId) { continue }
+                    try {
+                        $result = az role assignment create `
+                            --assignee $principalId `
+                            --role "Cognitive Services OpenAI Contributor" `
+                            --scope $accountScope `
+                            --query id -o tsv 2>&1
+
+                        if ($LASTEXITCODE -eq 0) {
+                            Success "Cognitive Services OpenAI Contributor assigned to principal $principalId"
+                        } elseif ($result -like "*already exists*" -or $result -like "*409*") {
+                            Success "Cognitive Services OpenAI Contributor already present for principal $principalId"
+                        } else {
+                            Warn "Failed to assign Cognitive Services OpenAI Contributor to principal ${principalId}: $result"
+                        }
+                    } catch {
+                        Warn "Failed to assign Cognitive Services OpenAI Contributor to principal ${principalId}: $($_.Exception.Message)"
+                    }
+                }
+            }
+
             # Attempt to assign Contributor on the default project if available
             try {
                 $projectName = $env:aiFoundryProjectName
@@ -252,6 +276,30 @@ try {
                         Success "Contributor role already present on AI Foundry project"
                     } else {
                         Warn "Failed to assign Contributor on AI Foundry project: $assignmentProject"
+                    }
+
+                    if ($additionalPrincipalIds.Count -gt 0) {
+                        Log "Assigning Cognitive Services OpenAI Contributor to additional principals on AI Foundry project '$projectName'"
+                        foreach ($principalId in $additionalPrincipalIds) {
+                            if (-not $principalId) { continue }
+                            try {
+                                $result = az role assignment create `
+                                    --assignee $principalId `
+                                    --role "Cognitive Services OpenAI Contributor" `
+                                    --scope $projectResourceId `
+                                    --query id -o tsv 2>&1
+
+                                if ($LASTEXITCODE -eq 0) {
+                                    Success "Cognitive Services OpenAI Contributor assigned to principal $principalId on project"
+                                } elseif ($result -like "*already exists*" -or $result -like "*409*") {
+                                    Success "Cognitive Services OpenAI Contributor already present for principal $principalId on project"
+                                } else {
+                                    Warn "Failed to assign Cognitive Services OpenAI Contributor to principal ${principalId} on project: $result"
+                                }
+                            } catch {
+                                Warn "Failed to assign Cognitive Services OpenAI Contributor to principal ${principalId} on project: $($_.Exception.Message)"
+                            }
+                        }
                     }
 
                     # Retrieve project identity to propagate search roles
