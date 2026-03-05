@@ -8,7 +8,6 @@
 
 targetScope = 'resourceGroup'
 metadata description = 'Deploys AI Landing Zone with Fabric capacity extension'
-import * as types from '../submodules/ai-landing-zone/bicep/infra/common/types.bicep'
 
 // ========================================
 // PARAMETERS - AI LANDING ZONE (Required)
@@ -21,7 +20,13 @@ param deployToggles object = {}
 param flagPlatformLandingZone bool = false
 
 @description('Optional. Existing resource IDs to reuse.')
-param resourceIds types.resourceIdsType = {}
+param resourceIds object = {}
+
+@description('Enable zero-trust network isolation in the landing zone deployment.')
+param networkIsolation bool = true
+
+@description('Resource ID of the AI Landing Zone Template Spec version to deploy (for example: /subscriptions/<sub>/resourceGroups/<rg>/providers/Microsoft.Resources/templateSpecs/<name>/versions/<version>).')
+param aiLandingZoneTemplateSpecResourceId string = ''
 
 @description('Optional. Azure region for resources.')
 param location string = resourceGroup().location
@@ -36,7 +41,7 @@ param resourceToken string = toLower(uniqueString(subscription().id, resourceGro
 param baseName string = substring(resourceToken, 0, 12)
 
 @description('Optional. AI Search settings.')
-param aiSearchDefinition types.kSAISearchDefinitionType?
+param aiSearchDefinition object = {}
 
 @description('Optional. Additional Entra object IDs (users or groups) granted AI Search contributor roles.')
 param aiSearchAdditionalAccessObjectIds array = []
@@ -49,22 +54,52 @@ param tags object = {}
 
 // All other optional parameters from AI Landing Zone - pass as needed
 @description('Optional. Private DNS Zone configuration.')
-param privateDnsZonesDefinition types.privateDnsZonesDefinitionType = {}
+param privateDnsZonesDefinition object = {}
 
 @description('Optional. Enable Defender for AI.')
 param enableDefenderForAI bool = true
 
 @description('Optional. NSG definitions per subnet.')
-param nsgDefinitions types.nsgPerSubnetDefinitionsType?
+param nsgDefinitions object = {}
 
 @description('Optional. Virtual Network configuration.')
-param vNetDefinition types.vNetDefinitionType?
+param vNetDefinition object = {}
 
 @description('Optional. AI Foundry configuration.')
-param aiFoundryDefinition types.aiFoundryDefinitionType = {}
+param aiFoundryDefinition object = {}
 
-@description('Optional. API Management configuration.')
-param apimDefinition types.apimDefinitionType?
+@description('Object ID of the deployment principal for role assignments in the landing zone module.')
+param principalId string = ''
+
+@description('Principal type for role assignments.')
+@allowed([
+  'User'
+  'ServicePrincipal'
+  'Group'
+])
+param principalType string = 'User'
+
+@description('Optional override for model deployments consumed by the new landing zone template.')
+param modelDeploymentList array = []
+
+@description('Optional container apps configuration list consumed by the new landing zone template.')
+param containerAppsList array = []
+
+@description('Optional Cosmos DB container list consumed by the new landing zone template.')
+param databaseContainersList array = []
+
+@secure()
+@description('Optional VM admin password consumed by the new landing zone template when VM deployment is enabled.')
+param vmAdminPassword string = ''
+
+@description('Optional Storage Account container list consumed by the new landing zone template.')
+param storageAccountContainersList array = []
+
+@description('Optional VM user name consumed by the new landing zone template when VM deployment is enabled.')
+param vmUserName string = ''
+
+@description('Optional VM name consumed by the new landing zone template when VM deployment is enabled.')
+param vmName string = ''
 
 // Add more parameters as needed from AI Landing Zone...
 
@@ -230,25 +265,171 @@ param purviewCollectionName string = ''
 // AI LANDING ZONE DEPLOYMENT
 // ========================================
 
-module aiLandingZone '../submodules/ai-landing-zone/bicep/infra/main.bicep' = {
+var effectiveEnvironmentName = !empty(environmentName) ? environmentName : deployment().name
+var existingAiSearchResourceId = string(resourceIds.?searchServiceResourceId ?? '')
+var existingKeyVaultResourceId = string(resourceIds.?keyVaultResourceId ?? '')
+var existingStorageAccountResourceId = string(resourceIds.?storageAccountResourceId ?? '')
+var existingCosmosDbResourceId = string(resourceIds.?cosmosDbResourceId ?? '')
+
+var effectiveAiFoundryAccountName = string(aiFoundryDefinition.?aiFoundryConfiguration.?accountName ?? 'aif-${resourceToken}')
+var effectiveAiFoundryProjectName = string(aiFoundryDefinition.?aiFoundryConfiguration.?project.?name ?? 'aifp-${resourceToken}')
+var effectiveAiSearchName = !empty(existingAiSearchResourceId)
+  ? last(split(existingAiSearchResourceId, '/'))
+  : string(aiSearchDefinition.?name ?? 'srch-${resourceToken}')
+var effectiveStorageAccountName = !empty(existingStorageAccountResourceId)
+  ? last(split(existingStorageAccountResourceId, '/'))
+  : 'st${resourceToken}'
+var effectiveKeyVaultName = !empty(existingKeyVaultResourceId)
+  ? last(split(existingKeyVaultResourceId, '/'))
+  : 'kv-${resourceToken}'
+var effectiveLogAnalyticsWorkspaceName = 'log-${resourceToken}'
+var effectiveVnetName = string(vNetDefinition.?name ?? 'vnet-${resourceToken}')
+
+var effectiveDeployAiFoundry = bool(deployToggles.?aiFoundry ?? true)
+var effectiveDeployAifAgentService = bool(aiFoundryDefinition.?aiFoundryConfiguration.?createCapabilityHosts ?? false)
+var effectiveDeployVm = bool((deployToggles.?buildVm ?? false) || (deployToggles.?jumpVm ?? false))
+var effectiveModelDeploymentList = !empty(aiFoundryDefinition.?aiModelDeployments ?? [])
+  ? aiFoundryDefinition.aiModelDeployments
+  : modelDeploymentList
+
+resource aiLandingZoneDeployment 'Microsoft.Resources/deployments@2024-03-01' = {
   name: 'ai-landing-zone'
-  params: {
-    deployToggles: deployToggles
-    flagPlatformLandingZone: flagPlatformLandingZone
-    resourceIds: resourceIds
-    location: location
-    resourceToken: resourceToken
-    baseName: baseName
-    enableTelemetry: enableTelemetry
-    tags: tags
-    privateDnsZonesDefinition: privateDnsZonesDefinition
-    enableDefenderForAI: enableDefenderForAI
-    nsgDefinitions: nsgDefinitions
-    vNetDefinition: vNetDefinition
-    aiFoundryDefinition: aiFoundryDefinition
-    apimDefinition: apimDefinition
-    aiSearchDefinition: aiSearchDefinition
-    // Add more parameters as needed...
+  properties: {
+    mode: 'Incremental'
+    templateLink: {
+      id: aiLandingZoneTemplateSpecResourceId
+    }
+    parameters: {
+      environmentName: {
+        value: effectiveEnvironmentName
+      }
+      location: {
+        value: location
+      }
+      resourceToken: {
+        value: resourceToken
+      }
+      principalId: {
+        value: principalId
+      }
+      principalType: {
+        value: principalType
+      }
+      deploymentTags: {
+        value: tags
+      }
+      networkIsolation: {
+        value: networkIsolation
+      }
+      deployAiFoundry: {
+        value: effectiveDeployAiFoundry
+      }
+      deployAfProject: {
+        value: effectiveDeployAiFoundry
+      }
+      deployAAfAgentSvc: {
+        value: effectiveDeployAifAgentService
+      }
+      deploySearchService: {
+        value: bool(deployToggles.?searchService ?? true)
+      }
+      deployStorageAccount: {
+        value: bool(deployToggles.?storageAccount ?? true)
+      }
+      deployKeyVault: {
+        value: bool(deployToggles.?keyVault ?? true)
+      }
+      deployLogAnalytics: {
+        value: bool(deployToggles.?logAnalytics ?? true)
+      }
+      deployAppInsights: {
+        value: bool(deployToggles.?appInsights ?? true)
+      }
+      deployContainerRegistry: {
+        value: bool(deployToggles.?containerRegistry ?? true)
+      }
+      deployContainerEnv: {
+        value: bool(deployToggles.?containerEnv ?? true)
+      }
+      deployContainerApps: {
+        value: bool(deployToggles.?containerApps ?? true)
+      }
+      deployCosmosDb: {
+        value: bool(deployToggles.?cosmosDb ?? true)
+      }
+      deployGroundingWithBing: {
+        value: bool(deployToggles.?groundingWithBingSearch ?? false)
+      }
+      deployApim: {
+        value: bool(deployToggles.?apiManagement ?? false)
+      }
+      deployNsgs: {
+        value: bool(deployToggles.?virtualNetwork ?? true)
+      }
+      deploySubnets: {
+        value: bool(deployToggles.?virtualNetwork ?? true)
+      }
+      deployVM: {
+        value: effectiveDeployVm
+      }
+      deployVmKeyVault: {
+        value: bool(deployToggles.?keyVault ?? true)
+      }
+      keyVaultResourceId: {
+        value: existingKeyVaultResourceId
+      }
+      aiSearchResourceId: {
+        value: existingAiSearchResourceId
+      }
+      aiFoundryStorageAccountResourceId: {
+        value: existingStorageAccountResourceId
+      }
+      aiFoundryCosmosDBAccountResourceId: {
+        value: existingCosmosDbResourceId
+      }
+      aiFoundryAccountName: {
+        value: effectiveAiFoundryAccountName
+      }
+      aiFoundryProjectName: {
+        value: effectiveAiFoundryProjectName
+      }
+      searchServiceName: {
+        value: effectiveAiSearchName
+      }
+      storageAccountName: {
+        value: effectiveStorageAccountName
+      }
+      keyVaultName: {
+        value: effectiveKeyVaultName
+      }
+      logAnalyticsWorkspaceName: {
+        value: effectiveLogAnalyticsWorkspaceName
+      }
+      vnetName: {
+        value: effectiveVnetName
+      }
+      modelDeploymentList: {
+        value: effectiveModelDeploymentList
+      }
+      containerAppsList: {
+        value: containerAppsList
+      }
+      databaseContainersList: {
+        value: databaseContainersList
+      }
+      storageAccountContainersList: {
+        value: storageAccountContainersList
+      }
+      vmAdminPassword: {
+        value: vmAdminPassword
+      }
+      vmUserName: {
+        value: vmUserName
+      }
+      vmName: {
+        value: vmName
+      }
+    }
   }
 }
 
@@ -275,7 +456,7 @@ module fabricCapacity 'modules/fabric-capacity.bicep' = if (effectiveFabricCapac
     tags: tags
   }
   dependsOn: [
-    aiLandingZone
+    aiLandingZoneDeployment
   ]
 }
 
@@ -290,7 +471,8 @@ var effectivePostgresServerName = !empty(postgresServerName)
   : toLower(substring(postgresNameBase, 0, min(63, length(postgresNameBase))))
 
 var postgresPrivateDnsZoneName = 'privatelink.postgres.database.azure.com'
-var defaultPostgresPeSubnetResourceId = '${aiLandingZone.outputs.virtualNetworkResourceId}/subnets/pe-subnet'
+var virtualNetworkResourceIdComputed = resourceId('Microsoft.Network/virtualNetworks', effectiveVnetName)
+var defaultPostgresPeSubnetResourceId = '${virtualNetworkResourceIdComputed}/subnets/pe-subnet'
 var effectivePostgresPeSubnetResourceId = !empty(postgresPrivateEndpointSubnetResourceId)
   ? postgresPrivateEndpointSubnetResourceId
   : defaultPostgresPeSubnetResourceId
@@ -307,7 +489,7 @@ resource postgresPrivateDnsZoneVnetLink 'Microsoft.Network/privateDnsZones/virtu
   properties: {
     registrationEnabled: false
     virtualNetwork: {
-      id: aiLandingZone.outputs.virtualNetworkResourceId
+      id: virtualNetworkResourceIdComputed
     }
   }
 }
@@ -363,19 +545,19 @@ module postgresFlexibleServer 'br/public:avm/res/db-for-postgre-sql/flexible-ser
 // OUTPUTS - Pass through from AI Landing Zone
 // ========================================
 
-output virtualNetworkResourceId string = aiLandingZone.outputs.virtualNetworkResourceId
-output keyVaultResourceId string = aiLandingZone.outputs.keyVaultResourceId
-output storageAccountResourceId string = aiLandingZone.outputs.storageAccountResourceId
-output aiFoundryProjectName string = aiLandingZone.outputs.aiFoundryProjectName
-output logAnalyticsWorkspaceResourceId string = aiLandingZone.outputs.logAnalyticsWorkspaceResourceId
-output aiSearchResourceId string = aiLandingZone.outputs.aiSearchResourceId
-output aiSearchName string = aiLandingZone.outputs.aiSearchName
+output virtualNetworkResourceId string = virtualNetworkResourceIdComputed
+output keyVaultResourceId string = !empty(existingKeyVaultResourceId) ? existingKeyVaultResourceId : resourceId('Microsoft.KeyVault/vaults', effectiveKeyVaultName)
+output storageAccountResourceId string = !empty(existingStorageAccountResourceId) ? existingStorageAccountResourceId : resourceId('Microsoft.Storage/storageAccounts', effectiveStorageAccountName)
+output aiFoundryProjectName string = effectiveAiFoundryProjectName
+output logAnalyticsWorkspaceResourceId string = resourceId('Microsoft.OperationalInsights/workspaces', effectiveLogAnalyticsWorkspaceName)
+output aiSearchResourceId string = !empty(existingAiSearchResourceId) ? existingAiSearchResourceId : resourceId('Microsoft.Search/searchServices', effectiveAiSearchName)
+output aiSearchName string = effectiveAiSearchName
 output aiSearchAdditionalAccessObjectIds array = aiSearchAdditionalAccessObjectIds
 
 // Subnet IDs (constructed from VNet ID using AI Landing Zone naming convention)
-output peSubnetResourceId string = '${aiLandingZone.outputs.virtualNetworkResourceId}/subnets/pe-subnet'
-output jumpboxSubnetResourceId string = '${aiLandingZone.outputs.virtualNetworkResourceId}/subnets/jumpbox-subnet'
-output agentSubnetResourceId string = '${aiLandingZone.outputs.virtualNetworkResourceId}/subnets/agent-subnet'
+output peSubnetResourceId string = '${virtualNetworkResourceIdComputed}/subnets/pe-subnet'
+output jumpboxSubnetResourceId string = '${virtualNetworkResourceIdComputed}/subnets/jumpbox-subnet'
+output agentSubnetResourceId string = '${virtualNetworkResourceIdComputed}/subnets/agent-subnet'
 
 // Fabric outputs
 output fabricCapacityModeOut string = effectiveFabricCapacityMode

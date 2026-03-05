@@ -6,6 +6,7 @@ using './main.bicep'
 
 // Per-service deployment toggles.
 param deployToggles = {
+  aiFoundry: true
   acaEnvironmentNsg: true
   agentNsg: true
   apiManagement: false
@@ -32,6 +33,7 @@ param deployToggles = {
   peNsg: true
   searchService: true
   storageAccount: true
+  userDefinedRoutes: true
   virtualNetwork: true
   wafPolicy: true
 }
@@ -42,8 +44,23 @@ param resourceIds = {}
 // Enable platform landing zone integration. When true, private DNS zones and private endpoints are managed by the platform landing zone.
 param flagPlatformLandingZone = false
 
+// Zero-trust switch: use `azd env set NETWORK_ISOLATION true|false` to control landing zone network isolation.
+param networkIsolation = bool(readEnvironmentVariable('NETWORK_ISOLATION', 'true'))
+
+// Template Spec version resource ID for the AI Landing Zone base deployment.
+param aiLandingZoneTemplateSpecResourceId = readEnvironmentVariable('AI_LZ_TEMPLATE_SPEC_RESOURCE_ID', '')
+
 // Environment name for resource naming (uses AZURE_ENV_NAME from azd).
 param environmentName = readEnvironmentVariable('AZURE_ENV_NAME', '')
+
+// Principal object ID used for RBAC assignments in the new landing zone template.
+param principalId = readEnvironmentVariable('AZURE_PRINCIPAL_ID', '')
+
+// Principal type for RBAC assignments.
+param principalType = 'User'
+
+// Optional VM admin password used only if VM deployment toggles are enabled.
+param vmAdminPassword = readEnvironmentVariable('VM_ADMIN_PASSWORD', '')
 
 // Collapse the environment name into an Azure-safe token.
 var foundryEnvName = empty(environmentName)
