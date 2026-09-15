@@ -44,7 +44,7 @@ var useExistingAiProjectVar = !empty(existingAiProjectResourceId)
 param existingLogAnalyticsWorkspaceResourceId = readEnvironmentVariable('EXISTING_LOG_ANALYTICS_WORKSPACE_RESOURCE_ID', '')
 
 // Optional additional Entra object IDs to grant Search roles.
-param aiSearchAdditionalAccessObjectIds = []
+param aiSearchAdditionalAccessObjectIds = ['0d60355b-dcae-4331-b55f-283d80aabde5']
 
 // ========================================
 // OPTIONAL INPUTS (Configuration)
@@ -275,14 +275,14 @@ param fabricWorkspaceName = readEnvironmentVariable('FABRIC_WORKSPACE_NAME', rea
 param fabricCapacitySku = 'F8'
 
 // Fabric capacity admin members (UPN emails preferred).
-param fabricCapacityAdmins = []
+param fabricCapacityAdmins = ['admin@MngEnv282784.onmicrosoft.com']
 
 // ========================================
 // PURVIEW PARAMETERS (Optional)
 // ========================================
 
 // Existing Purview account resource ID (in different subscription if needed).
-param purviewAccountResourceId = ''
+param purviewAccountResourceId = '/subscriptions/48ab3756-f962-40a8-b0cf-b33ddae744bb/resourceGroups/Governance/providers/Microsoft.Purview/accounts/swantekPurview'
 
 // Purview collection name (leave empty to auto-generate from environment name).
 param purviewCollectionName = ''
