@@ -1,0 +1,41 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "appName": {
+      "value": "blob-manager-app-prod"
+    },
+    "location": {
+      "value": "eastus"
+    },
+    "appServicePlanName": {
+      "value": "blob-manager-app-plan"
+    },
+    "appServiceSku": {
+      "value": "P1v3"
+    },
+    "appServiceSubnetResourceId": {
+      "value": "/subscriptions/<sub-id>/resourceGroups/<rg>/providers/Microsoft.Network/virtualNetworks/<vnet>/subnets/<delegated-appservice-subnet>"
+    },
+    "storageAccountName": {
+      "value": "<storage-account-name>"
+    },
+    "blobContainerName": {
+      "value": "managed-content"
+    },
+    "adminAccessKey": {
+      "value": "<set-a-strong-admin-key>"
+    },
+    "sessionCookieName": {
+      "value": "blob-manager-admin"
+    },
+    "sessionCookieSecure": {
+      "value": true
+    },
+    "corsAllowedOrigins": {
+      "value": [
+        "https://blob-manager-app-prod.azurewebsites.net"
+      ]
+    }
+  }
+}
