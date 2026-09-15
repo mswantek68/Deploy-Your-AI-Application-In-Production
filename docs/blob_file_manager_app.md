@@ -25,6 +25,31 @@ Container Apps environment communicate entirely over the private VNet.
 
 The application source code lives in [`apps/blob-file-manager`](../apps/blob-file-manager).
 
+## Local development — no VM, VNet, or Azure subscription required
+
+You do not need to deploy anything, connect to a VM, or use Azure Bastion to
+work on this app. Run it entirely on your workstation against the
+[Azurite](https://learn.microsoft.com/azure/storage/common/storage-use-azurite)
+storage emulator with Docker Compose:
+
+```bash
+cd apps/blob-file-manager
+docker compose up --build
+```
+
+Then browse to `http://localhost:8080`. Uploads are stored in a local
+Azurite volume — no traffic ever reaches Azure, so this works from any
+normal dev environment (laptop, Codespaces, CI, etc.) exactly like running
+any other local web app. See
+[`apps/blob-file-manager/README.md`](../apps/blob-file-manager/README.md)
+for additional local run options (without Docker Compose, or against a real,
+non-network-isolated Storage account).
+
+Only the **deployed** copy of the app — the Container App created by this
+accelerator — talks to the private, network-isolated storage account, and it
+does so automatically via its managed identity; you never need to reach that
+private endpoint yourself during development.
+
 ## Option A — Deploy as part of a fresh `azd up`
 
 If you haven't deployed yet, or are comfortable re-running provisioning, the

@@ -1,0 +1,31 @@
+# Local development stack: run the Blob File Manager app entirely on your
+# workstation against the Azurite storage emulator. No Azure subscription,
+# VNet, VM, or Bastion connection is required.
+#
+# Usage:
+#   cd apps/blob-file-manager
+#   docker compose up --build
+#   open http://localhost:8080
+services:
+  azurite:
+    image: mcr.microsoft.com/azure-storage/azurite:latest
+    command: "azurite-blob --blobHost 0.0.0.0 --blobPort 10000"
+    ports:
+      - "10000:10000"
+    volumes:
+      - azurite-data:/data
+
+  app:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      # Well-known Azurite development connection string/credentials.
+      # Never use these values against a real Azure Storage account.
+      AZURE_STORAGE_CONNECTION_STRING: "DefaultEndpointsProtocol=http;AccountName=devstoreaccount1;AccountKey=Eby8vdM02xNOcqFlqUwJPLlmEtlCDXJ1OUzFT50uSRZ6IFsuFq2UVErCz4I6tq/K1SZFPTOtr/KBHBeksoGMGw==;BlobEndpoint=http://azurite:10000/devstoreaccount1;"
+      UPLOADS_STORAGE_CONTAINER: "uploads"
+    depends_on:
+      - azurite
+
+volumes:
+  azurite-data:

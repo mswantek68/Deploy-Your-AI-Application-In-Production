@@ -1,14 +1,21 @@
 """Blob File Manager
 
 A minimal web application that lets users upload, edit, download and delete
-files stored in the private Azure Storage account provisioned by this
-accelerator. It is designed to run as an Azure Container App inside the same
-private virtual network as the storage account's private endpoint, so no
-storage keys, SAS tokens, or public network access are required.
+files stored in an Azure Storage account.
 
-Configuration is resolved at runtime from Azure App Configuration using the
-container app's managed identity, matching the pattern used by the
-`orchestrator` sample app in this repository.
+Two ways to run it:
+
+1. **Local development** — set `AZURE_STORAGE_CONNECTION_STRING` (e.g. to the
+   well-known Azurite emulator connection string, see `docker-compose.yml`).
+   No Azure subscription, VNet, VM, or Bastion connection is required; the
+   app runs entirely on your workstation like any other local web app.
+2. **Deployed to Azure** — when running as the Container App provisioned by
+   this accelerator, no connection string is set, and the app instead uses
+   the container app's system-assigned managed identity (via
+   `DefaultAzureCredential`) to reach the private storage account over the
+   private endpoint. Configuration is resolved at runtime from Azure App
+   Configuration, matching the pattern used by the `orchestrator` sample app
+   in this repository.
 """
 import io
 import os
@@ -29,26 +36,38 @@ EDITABLE_EXTENSIONS = {
     ".txt", ".md", ".json", ".csv", ".yaml", ".yml", ".xml", ".log", ".ini", ".config",
 }
 
-_credential = DefaultAzureCredential()
+_credential = None
 _blob_service_client = None
 _container_name = None
 
 
 def _load_config():
-    """Load STORAGE_ACCOUNT_NAME / STORAGE_BLOB_ENDPOINT / UPLOADS_STORAGE_CONTAINER
-    from App Configuration (preferred) or environment variables (local/dev fallback)."""
+    """Resolve the storage connection details.
+
+    Priority order:
+    1. ``AZURE_STORAGE_CONNECTION_STRING`` — local development / Azurite. No
+       Azure AD credential or network access to Azure is required at all.
+    2. Azure App Configuration (``APP_CONFIG_ENDPOINT``) — used when deployed
+       as the Container App in this accelerator, read via managed identity.
+    3. Plain ``STORAGE_BLOB_ENDPOINT`` / ``STORAGE_ACCOUNT_NAME`` environment
+       variables — manual override/fallback.
+    """
+    connection_string = os.environ.get("AZURE_STORAGE_CONNECTION_STRING")
+    container_name = os.environ.get("UPLOADS_STORAGE_CONTAINER", "uploads")
+    if connection_string:
+        return {"connection_string": connection_string}, container_name
+
     app_config_endpoint = os.environ.get("APP_CONFIG_ENDPOINT")
     label = os.environ.get("APP_CONFIG_LABEL", "ai-lz")
 
     blob_endpoint = os.environ.get("STORAGE_BLOB_ENDPOINT")
     storage_account_name = os.environ.get("STORAGE_ACCOUNT_NAME")
-    container_name = os.environ.get("UPLOADS_STORAGE_CONTAINER", "uploads")
 
     if app_config_endpoint:
         try:
             settings = load(
                 endpoint=app_config_endpoint,
-                credential=_credential,
+                credential=_get_credential(),
                 selects=[{"key_filter": "*", "label_filter": label}],
             )
             blob_endpoint = settings.get("STORAGE_BLOB_ENDPOINT", blob_endpoint)
@@ -62,18 +81,30 @@ def _load_config():
 
     if not blob_endpoint:
         raise RuntimeError(
-            "Storage configuration is missing. Set APP_CONFIG_ENDPOINT (with STORAGE_BLOB_ENDPOINT/"
+            "Storage configuration is missing. For local development, set "
+            "AZURE_STORAGE_CONNECTION_STRING (see docker-compose.yml for Azurite). "
+            "For deployed use, set APP_CONFIG_ENDPOINT (with STORAGE_BLOB_ENDPOINT/"
             "STORAGE_ACCOUNT_NAME populated), or set STORAGE_BLOB_ENDPOINT/STORAGE_ACCOUNT_NAME directly."
         )
 
-    return blob_endpoint, container_name
+    return {"blob_endpoint": blob_endpoint}, container_name
+
+
+def _get_credential():
+    global _credential
+    if _credential is None:
+        _credential = DefaultAzureCredential()
+    return _credential
 
 
 def _get_container_client():
     global _blob_service_client, _container_name
     if _blob_service_client is None:
-        blob_endpoint, container_name = _load_config()
-        _blob_service_client = BlobServiceClient(account_url=blob_endpoint, credential=_credential)
+        target, container_name = _load_config()
+        if "connection_string" in target:
+            _blob_service_client = BlobServiceClient.from_connection_string(target["connection_string"])
+        else:
+            _blob_service_client = BlobServiceClient(account_url=target["blob_endpoint"], credential=_get_credential())
         _container_name = container_name
         try:
             _blob_service_client.create_container(_container_name)
