@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Blob File Manager</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, Arial, sans-serif; margin: 2rem; }
+    table { border-collapse: collapse; width: 100%; }
+    th, td { border: 1px solid #ddd; padding: 0.5rem; text-align: left; }
+    th { background: #f5f5f5; }
+    form.inline { display: inline; }
+    .actions button, .actions a { margin-right: 0.5rem; }
+  </style>
+</head>
+<body>
+  <h1>Blob File Manager</h1>
+  <p>Upload, download, edit and delete files stored in the private Azure Storage account.</p>
+
+  <form action="{{ url_for('upload') }}" method="post" enctype="multipart/form-data">
+    <input type="file" name="file" required>
+    <button type="submit">Upload</button>
+  </form>
+
+  <h2>Files</h2>
+  <table>
+    <thead>
+      <tr><th>Name</th><th>Size (bytes)</th><th>Last Modified</th><th>Actions</th></tr>
+    </thead>
+    <tbody>
+      {% for blob in blobs %}
+      <tr>
+        <td>{{ blob.name }}</td>
+        <td>{{ blob.size }}</td>
+        <td>{{ blob.last_modified }}</td>
+        <td class="actions">
+          <a href="{{ url_for('download', blob_name=blob.name) }}">Download</a>
+          {% if blob.editable %}
+          <a href="{{ url_for('edit', blob_name=blob.name) }}">Edit</a>
+          {% endif %}
+          <form class="inline" action="{{ url_for('delete', blob_name=blob.name) }}" method="post" onsubmit="return confirm('Delete {{ blob.name }}?');">
+            <button type="submit">Delete</button>
+          </form>
+        </td>
+      </tr>
+      {% else %}
+      <tr><td colspan="4">No files uploaded yet.</td></tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</body>
+</html>

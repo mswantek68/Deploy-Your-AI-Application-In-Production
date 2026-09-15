@@ -117,6 +117,11 @@ param deployContainerApps = true
 param deployContainerRegistry = true
 param deployContainerEnv = true
 param deployVM = true
+// Optional Point-to-Site VPN Gateway: lets a developer connect their own
+// workstation directly into the private VNet (no jump VM/Bastion needed) to
+// reach private-endpoint-only resources such as the storage account.
+// Off by default because it has an ongoing hourly cost while deployed.
+param deployVpnGateway = readEnvironmentVariable('DEPLOY_VPN_GATEWAY', 'false') == 'true'
 param deploySubnets = readEnvironmentVariable('DEPLOY_SUBNETS', 'true') == 'true'
 param deployNsgs = true
 param sideBySideDeploy = readEnvironmentVariable('SIDE_BY_SIDE', 'true') == 'true'
@@ -185,6 +190,10 @@ param storageAccountContainersList = [
     name: 'documents-images'
     canonical_name: 'DOCUMENTS_IMAGES_STORAGE_CONTAINER'
   }
+  {
+    name: 'uploads'
+    canonical_name: 'UPLOADS_STORAGE_CONTAINER'
+  }
 ]
 
 param databaseContainersList = [
@@ -224,6 +233,23 @@ param containerAppsList = [
       'SearchIndexDataReader'
       'StorageBlobDataReader'
       'KeyVaultSecretsUser'
+    ]
+  }
+  {
+    // Blob File Manager: upload/edit/download/delete files in the private
+    // storage account's "uploads" container. See apps/blob-file-manager and
+    // docs/blob_file_manager_app.md.
+    name: null
+    external: true
+    service_name: 'blobmanager'
+    profile_name: 'main'
+    min_replicas: 1
+    max_replicas: 1
+    canonical_name: 'BLOB_MANAGER_APP'
+    roles: [
+      'AppConfigurationDataReader'
+      'AcrPull'
+      'StorageBlobDataContributor'
     ]
   }
 ]

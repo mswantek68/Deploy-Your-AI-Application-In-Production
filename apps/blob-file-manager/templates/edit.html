@@ -1,0 +1,20 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Edit {{ blob_name }}</title>
+  <style>
+    body { font-family: -apple-system, Segoe UI, Arial, sans-serif; margin: 2rem; }
+    textarea { width: 100%; height: 60vh; font-family: monospace; }
+  </style>
+</head>
+<body>
+  <h1>Edit {{ blob_name }}</h1>
+  <form action="{{ url_for('edit', blob_name=blob_name) }}" method="post">
+    <textarea name="content">{{ content }}</textarea>
+    <br>
+    <button type="submit">Save</button>
+    <a href="{{ url_for('index') }}">Cancel</a>
+  </form>
+</body>
+</html>

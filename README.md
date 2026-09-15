@@ -288,6 +288,7 @@ Supporting documentation
 | [Required Roles & Scopes](./docs/required_roles_scopes_resources.md) | IAM requirements for deployment |
 | [Parameter Guide](./docs/parameter_guide.md) | All deployment parameters, toggles & model configs |
 | [Deploy App from Foundry](./docs/deploy_app_from_foundry.md) | Publish playground to App Service |
+| [Blob File Manager App](./docs/blob_file_manager_app.md) | Upload, edit, and download files in the private storage account via a Container App |
 | [Accessing Private Resources](./docs/Accessing_Private_Resources.md) | Connect via Jump VM |
 
 ### Security Guidelines
