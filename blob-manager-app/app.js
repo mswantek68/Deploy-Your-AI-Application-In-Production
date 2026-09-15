@@ -2,6 +2,7 @@ const express = require('express');
 const path = require('path');
 const cors = require('cors');
 const cookieParser = require('cookie-parser');
+const rateLimit = require('express-rate-limit');
 const { DefaultAzureCredential } = require('@azure/identity');
 const { BlobServiceClient } = require('@azure/storage-blob');
 const config = require('./config');
@@ -24,6 +25,18 @@ function createContainerClient() {
 function createApp({ containerClient } = {}) {
   const app = express();
   const resolvedContainerClient = containerClient || createContainerClient();
+  const requestLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 120,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
+  const authLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    limit: 20,
+    standardHeaders: true,
+    legacyHeaders: false
+  });
 
   const corsOrigins = config.corsAllowedOrigins;
   if (corsOrigins.length) {
@@ -37,6 +50,7 @@ function createApp({ containerClient } = {}) {
 
   app.use(express.json({ limit: '10mb' }));
   app.use(cookieParser());
+  app.use(requestLimiter);
 
   app.get('/health', async (req, res, next) => {
     try {
@@ -47,7 +61,7 @@ function createApp({ containerClient } = {}) {
     }
   });
 
-  app.use('/api/admin', adminRoutes);
+  app.use('/api/admin', authLimiter, adminRoutes);
   app.use('/api/blobs', ensureConfigured, requireAdmin, createBlobRoutes({ containerClient: resolvedContainerClient }));
 
   app.use(express.static(path.join(__dirname, 'public')));
