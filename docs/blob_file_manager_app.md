@@ -50,6 +50,35 @@ accelerator — talks to the private, network-isolated storage account, and it
 does so automatically via its managed identity; you never need to reach that
 private endpoint yourself during development.
 
+## Working with the real, private storage account from your workstation
+
+Azurite is fully local/offline — files uploaded there never reach Azure.
+If you need uploads to land in the actual, network-isolated storage account
+without a jump VM or Bastion session (the same experience as the
+`mswantek68.github.io` example: an app in front of a blob store behind a
+private endpoint, reachable directly from a normal dev machine), deploy the
+optional Point-to-Site (P2S) VPN Gateway:
+
+```bash
+azd env set DEPLOY_VPN_GATEWAY true
+azd provision
+```
+
+Then generate and import the Azure VPN Client profile with
+`scripts/connect_vpn_gateway.sh` (or `.ps1`), connect using your Microsoft
+Entra ID account, and run the app locally with `STORAGE_ACCOUNT_NAME` set (see
+[`apps/blob-file-manager/README.md`](../apps/blob-file-manager/README.md#run-against-the-real-private-storage-account-no-vm)).
+Once connected, your workstation has a private IP inside the VNet and reaches
+the storage account through its existing private endpoint — the storage
+account's `publicNetworkAccess` stays `Disabled` throughout; nothing is opened
+publicly.
+
+> **Security note:** The VPN Gateway is opt-in (`deployVpnGateway=false` by
+> default) and has an ongoing hourly cost while deployed. Turn it back off
+> with `azd env set DEPLOY_VPN_GATEWAY false && azd provision` when you no
+> longer need direct access, the same way you would tear down a jump VM you
+> were done using.
+
 ## Option A — Deploy as part of a fresh `azd up`
 
 If you haven't deployed yet, or are comfortable re-running provisioning, the

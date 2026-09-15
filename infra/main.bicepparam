@@ -117,6 +117,11 @@ param deployContainerApps = true
 param deployContainerRegistry = true
 param deployContainerEnv = true
 param deployVM = true
+// Optional Point-to-Site VPN Gateway: lets a developer connect their own
+// workstation directly into the private VNet (no jump VM/Bastion needed) to
+// reach private-endpoint-only resources such as the storage account.
+// Off by default because it has an ongoing hourly cost while deployed.
+param deployVpnGateway = readEnvironmentVariable('DEPLOY_VPN_GATEWAY', 'false') == 'true'
 param deploySubnets = readEnvironmentVariable('DEPLOY_SUBNETS', 'true') == 'true'
 param deployNsgs = true
 param sideBySideDeploy = readEnvironmentVariable('SIDE_BY_SIDE', 'true') == 'true'

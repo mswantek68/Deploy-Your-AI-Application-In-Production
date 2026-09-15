@@ -735,6 +735,11 @@ output peSubnetResourceId string = '${effectiveVnetResourceId}/subnets/${peSubne
 output jumpboxSubnetResourceId string = '${effectiveVnetResourceId}/subnets/${jumpboxSubnetName}'
 output agentSubnetResourceId string = '${effectiveVnetResourceId}/subnets/${agentSubnetName}'
 
+// Point-to-Site VPN Gateway outputs (empty strings when deployVpnGateway is false)
+output vpnGatewayName string = deployVpnGateway ? vpnGatewayResourceName : ''
+#disable-next-line BCP318
+output vpnGatewayPublicIpAddress string = deployVpnGateway ? vpnGatewayPublicIp.properties.ipAddress : ''
+
 // Fabric outputs
 output fabricCapacityModeOut string = effectiveFabricCapacityMode
 output fabricWorkspaceModeOut string = effectiveFabricWorkspaceMode
