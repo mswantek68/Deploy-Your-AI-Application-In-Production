@@ -167,6 +167,37 @@ param vmImageVersion string = 'latest'
 param storageAccountContainersList array
 
 // ========================================
+// PARAMETERS - POINT-TO-SITE VPN GATEWAY
+// ========================================
+// Lets a developer connect directly from a normal workstation (no jump VM,
+// no Bastion) into the private network so private-endpoint-only resources
+// (e.g. the storage account behind networkIsolation) can be reached the
+// same way a public app would reach them behind a private endpoint. Storage
+// account public network access stays fully "Disabled" either way.
+// Opt-in because a VPN Gateway has an ongoing hourly cost while deployed.
+
+@description('Deploy a Point-to-Site VPN Gateway so developers can reach private-endpoint-only resources directly from their own workstation. Optional; incurs ongoing cost while deployed.')
+param deployVpnGateway bool = false
+
+@description('Name of the dedicated subnet used by the VPN Gateway. Azure requires this exact name ("GatewaySubnet"); the pre-existing gatewaySubnetName/gatewaySubnetPrefix reserved by the landing zone submodule cannot be reused because it is not named "GatewaySubnet".')
+param vpnGatewaySubnetName string = 'GatewaySubnet'
+
+@description('Address prefix for the dedicated VPN GatewaySubnet. Must not overlap with any other subnet in the VNet.')
+param vpnGatewaySubnetPrefix string = '192.168.4.0/27'
+
+@description('VPN client address pool (CIDR) assigned to connected P2S clients. Must not overlap with the VNet address space.')
+param vpnClientAddressPoolPrefix string = '172.16.201.0/24'
+
+@description('VPN Gateway SKU (route-based).')
+@allowed([
+  'VpnGw1'
+  'VpnGw2'
+  'VpnGw1AZ'
+  'VpnGw2AZ'
+])
+param vpnGatewaySku string = 'VpnGw1'
+
+// ========================================
 // PARAMETERS - FABRIC EXTENSION
 // ========================================
 
@@ -357,6 +388,88 @@ var capacityName = substring(capacityNameBase, 0, min(50, length(capacityNameBas
 var effectiveVnetResourceId = useExistingVNet && !empty(existingVnetResourceId)
   ? existingVnetResourceId
   : resourceId('Microsoft.Network/virtualNetworks', vnetName)
+
+// ----------------------------------------------------------------------
+// Point-to-Site VPN Gateway (optional)
+// ----------------------------------------------------------------------
+// Gives a developer's own workstation a private IP inside the VNet, so it
+// can reach private-endpoint-only resources (storage, etc.) directly,
+// without a jump VM/Bastion and without opening the storage account's
+// public network access. Uses Azure AD authentication so no certificates
+// need to be managed.
+var vpnGatewayPublicIpName = '${vnetName}-vpngw-pip'
+var vpnGatewayResourceName = '${vnetName}-vpngw'
+// Microsoft-owned public "Azure VPN Client" application id; fixed across all tenants.
+var azureVpnClientAppId = '41b23e61-6c1e-4545-b367-cd054e0ed4b4'
+
+resource vnetForVpnGateway 'Microsoft.Network/virtualNetworks@2023-11-01' existing = if (deployVpnGateway) {
+  name: last(split(effectiveVnetResourceId, '/'))
+}
+
+resource vpnGatewaySubnet 'Microsoft.Network/virtualNetworks/subnets@2023-11-01' = if (deployVpnGateway) {
+  parent: vnetForVpnGateway
+  name: vpnGatewaySubnetName
+  properties: {
+    addressPrefix: vpnGatewaySubnetPrefix
+  }
+}
+
+resource vpnGatewayPublicIp 'Microsoft.Network/publicIPAddresses@2023-11-01' = if (deployVpnGateway) {
+  name: vpnGatewayPublicIpName
+  location: effectiveLocation
+  sku: {
+    name: 'Standard'
+  }
+  properties: {
+    publicIPAllocationMethod: 'Static'
+  }
+  tags: deploymentTags
+}
+
+resource vpnGateway 'Microsoft.Network/virtualNetworkGateways@2023-11-01' = if (deployVpnGateway) {
+  name: vpnGatewayResourceName
+  location: effectiveLocation
+  tags: deploymentTags
+  properties: {
+    ipConfigurations: [
+      {
+        name: 'vnetGatewayConfig'
+        properties: {
+          privateIPAllocationMethod: 'Dynamic'
+          publicIPAddress: {
+            id: vpnGatewayPublicIp.id
+          }
+          subnet: {
+            id: vpnGatewaySubnet.id
+          }
+        }
+      }
+    ]
+    gatewayType: 'Vpn'
+    vpnType: 'RouteBased'
+    vpnGatewayGeneration: 'Generation2'
+    sku: {
+      name: vpnGatewaySku
+      tier: vpnGatewaySku
+    }
+    vpnClientConfiguration: {
+      vpnClientAddressPool: {
+        addressPrefixes: [
+          vpnClientAddressPoolPrefix
+        ]
+      }
+      vpnClientProtocols: [
+        'OpenVPN'
+      ]
+      vpnAuthenticationTypes: [
+        'AAD'
+      ]
+      aadTenant: '${environment().authentication.loginEndpoint}${tenant().tenantId}'
+      aadAudience: azureVpnClientAppId
+      aadIssuer: '${environment().authentication.loginEndpoint}${tenant().tenantId}/'
+    }
+  }
+}
 
 var postgreSqlPrivateDnsZoneName = 'privatelink.postgres.database.azure.com'
 var postgreSqlPrivateDnsLinkNameRaw = '${postgreSqlServerName}-vnetlink'
